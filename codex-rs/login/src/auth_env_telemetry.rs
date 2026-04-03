@@ -73,6 +73,7 @@ mod tests {
             stream_max_retries: None,
             stream_idle_timeout_ms: None,
             websocket_connect_timeout_ms: None,
+        sampling_request_timeout_ms: None,
             requires_openai_auth: false,
             supports_websockets: false,
         };
