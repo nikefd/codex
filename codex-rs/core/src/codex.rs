@@ -6540,36 +6540,52 @@ async fn run_sampling_request(
             Arc::clone(&turn_diff_tracker),
         )
         .await;
+    let sampling_request_timeout = turn_context.provider.sampling_request_timeout();
     let mut retries = 0;
     loop {
-        let err = match try_run_sampling_request(
-            tool_runtime.clone(),
-            Arc::clone(&sess),
-            Arc::clone(&turn_context),
-            client_session,
-            turn_metadata_header,
-            Arc::clone(&turn_diff_tracker),
-            server_model_warning_emitted_for_turn,
-            &prompt,
-            cancellation_token.child_token(),
+        let err = match tokio::time::timeout(
+            sampling_request_timeout,
+            try_run_sampling_request(
+                tool_runtime.clone(),
+                Arc::clone(&sess),
+                Arc::clone(&turn_context),
+                client_session,
+                turn_metadata_header,
+                Arc::clone(&turn_diff_tracker),
+                server_model_warning_emitted_for_turn,
+                &prompt,
+                cancellation_token.child_token(),
+            ),
         )
         .await
         {
-            Ok(output) => {
+            Ok(Ok(output)) => {
                 return Ok(output);
             }
-            Err(CodexErr::ContextWindowExceeded) => {
+            Ok(Err(CodexErr::ContextWindowExceeded)) => {
                 sess.set_total_tokens_full(&turn_context).await;
                 return Err(CodexErr::ContextWindowExceeded);
             }
-            Err(CodexErr::UsageLimitReached(e)) => {
+            Ok(Err(CodexErr::UsageLimitReached(e))) => {
                 let rate_limits = e.rate_limits.clone();
                 if let Some(rate_limits) = rate_limits {
                     sess.update_rate_limits(&turn_context, *rate_limits).await;
                 }
                 return Err(CodexErr::UsageLimitReached(e));
             }
-            Err(err) => err,
+            Ok(Err(err)) => err,
+            Err(_elapsed) => {
+                // Overall sampling request timeout exceeded. The server kept
+                // the stream alive (e.g. via keepalive events) but never
+                // delivered `response.completed`.
+                CodexErr::Stream(
+                    format!(
+                        "sampling request timed out after {}s without completing",
+                        sampling_request_timeout.as_secs()
+                    ),
+                    None,
+                )
+            }
         };
 
         if !err.is_retryable() {

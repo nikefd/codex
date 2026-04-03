@@ -26,6 +26,8 @@ const DEFAULT_STREAM_IDLE_TIMEOUT_MS: u64 = 300_000;
 const DEFAULT_STREAM_MAX_RETRIES: u64 = 5;
 const DEFAULT_REQUEST_MAX_RETRIES: u64 = 4;
 pub const DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS: u64 = 15_000;
+/// Default overall sampling request timeout: 10 minutes.
+const DEFAULT_SAMPLING_REQUEST_TIMEOUT_MS: u64 = 600_000;
 /// Hard cap for user-configured `stream_max_retries`.
 const MAX_STREAM_MAX_RETRIES: u64 = 100;
 /// Hard cap for user-configured `request_max_retries`.
@@ -118,6 +120,11 @@ pub struct ModelProviderInfo {
     /// and API key (if needed) comes from the "env_key" environment variable.
     #[serde(default)]
     pub requires_openai_auth: bool,
+    /// Overall timeout (in milliseconds) for a single sampling request (the complete
+    /// round-trip from sending the prompt to receiving `response.completed`). Guards
+    /// against indefinite hangs when the server keeps the SSE stream alive with
+    /// keepalive events but never completes the response.
+    pub sampling_request_timeout_ms: Option<u64>,
     /// Whether this provider supports the Responses API WebSocket transport.
     #[serde(default)]
     pub supports_websockets: bool,
@@ -260,6 +267,13 @@ impl ModelProviderInfo {
             .unwrap_or(Duration::from_millis(DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS))
     }
 
+    /// Overall timeout for a single sampling request (prompt → response.completed).
+    pub fn sampling_request_timeout(&self) -> Duration {
+        self.sampling_request_timeout_ms
+            .map(Duration::from_millis)
+            .unwrap_or(Duration::from_millis(DEFAULT_SAMPLING_REQUEST_TIMEOUT_MS))
+    }
+
     pub fn create_openai_provider(base_url: Option<String>) -> ModelProviderInfo {
         ModelProviderInfo {
             name: OPENAI_PROVIDER_NAME.into(),
@@ -291,6 +305,7 @@ impl ModelProviderInfo {
             stream_max_retries: None,
             stream_idle_timeout_ms: None,
             websocket_connect_timeout_ms: None,
+            sampling_request_timeout_ms: None,
             requires_openai_auth: true,
             supports_websockets: true,
         }
@@ -373,6 +388,7 @@ pub fn create_oss_provider_with_base_url(base_url: &str, wire_api: WireApi) -> M
         stream_max_retries: None,
         stream_idle_timeout_ms: None,
         websocket_connect_timeout_ms: None,
+        sampling_request_timeout_ms: None,
         requires_openai_auth: false,
         supports_websockets: false,
     }

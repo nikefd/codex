@@ -944,6 +944,12 @@
           "description": "Whether this provider supports the Responses API WebSocket transport.",
           "type": "boolean"
         },
+        "sampling_request_timeout_ms": {
+          "description": "Overall timeout (in milliseconds) for a single sampling request (the complete round-trip from sending the prompt to receiving response.completed). Guards against indefinite hangs when the server keeps the SSE stream alive with keepalive events but never completes the response.",
+          "format": "uint64",
+          "minimum": 0.0,
+          "type": "integer"
+        },
         "websocket_connect_timeout_ms": {
           "description": "Maximum time (in milliseconds) to wait for a websocket connection attempt before treating it as failed.",
           "format": "uint64",

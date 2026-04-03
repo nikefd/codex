@@ -4367,6 +4367,7 @@ model_verbosity = "high"
         stream_max_retries: Some(10),
         stream_idle_timeout_ms: Some(300_000),
         websocket_connect_timeout_ms: Some(15_000),
+        sampling_request_timeout_ms: None,
         requires_openai_auth: false,
         supports_websockets: false,
     };
